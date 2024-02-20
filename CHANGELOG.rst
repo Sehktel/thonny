@@ -2,6 +2,37 @@
 Version history
 ===============
 
+4.1.4 (2023-11-19)
+==================
+* Fix regression in MicroPython package installation, #2979
+* Add better error message for externally managed environments, #3009
+* Fix package installation in remote virtual environments
+* Update Raspberry Pi detection
+* Silence "bad-option-value"-s given by Pylint 3
+
+4.1.3 (2023-09-28)
+==================
+* Fix first run crash on macOS (#2860)
+* Fix package upgrade and uninstall in portable variant (#2902)
+* Fix esptool flasher proposing wrong starting address for ESP32-S2 devices, #2920
+* Fix cursor jumping to Shell when program waits for input and the user types opening parenthesis in the editor, #2834
+* Add Catalan translation (by Pere)
+* Update German, French, Portuguese and Romanian translations. (See POEditor for contributions)
+
+4.1.2 (2023-08-12)
+==================
+* Avoid repetitive attempts to restart backend after connection gets lost during a Run (#2836)
+* Automatically hide tooltips if window loses focus, #2607
+* Import optional deps with augmented sys.path, fixes problems with importing plug-ins (#2816)
+* Don't leak main site-packages to virtual environment's sys.path, #2867
+* Fix Assistant error with relative imports, #2873
+* Don't attempt to save unchanged editor at run, #2804
+* Fix MicroPython upload errors by more conservative back-end isolation, #2016, #2851, #2864
+* Fix MicroPython code completions by fixing packaging of base MicroPython stubs, #2895
+* Fix various completion failures by reverting a jedi hack (67f2c120)
+* Avoid duplicate MicroPython completions when a module is already imported (852308fd)
+* Update Persian, Italian, Japanese, Brazilian Portuguese and Chinese translations (see POEditor for contributions)
+
 4.1.1 (2023-06-11)
 ==================
 * Fix warning for the cases where Thonny avoids user module shadowing a library module (#384)

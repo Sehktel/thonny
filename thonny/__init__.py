@@ -5,6 +5,11 @@ import time
 from logging import getLogger
 from typing import TYPE_CHECKING, List, Optional, cast
 
+sys.path.insert(
+    1,
+    os.path.normpath(os.path.join(os.path.dirname(__file__), "vendored_libs")),
+)
+
 from thonny.common import is_private_python, is_virtual_executable
 
 _last_module_count = 0
@@ -210,9 +215,34 @@ def _check_welcome():
 
         win = FirstRunWindow(mgr)
         win.mainloop()
+
+        if win.ok and sys.platform == "darwin" and sys.version_info < (3, 12, 1):
+            # The problem was fixed in patched Tk 8.6.13 bundled with Python 3.12.1
+            macos_app_path = _get_macos_app_path()
+            if macos_app_path:
+                # Shouldn't proceed to the main window in the same process, as TkAqua will crash on opening a menu
+                # or saving a file (https://github.com/thonny/thonny/issues/2860).
+                # Let's restart.
+                print("Restarting", macos_app_path)
+                os.system(f"open -n '{macos_app_path}'")
+                sys.exit(0)
+
         return win.ok
     else:
         return True
+
+
+def _get_macos_app_path() -> Optional[str]:
+    if sys.platform != "darwin":
+        return None
+    orig_argv = _get_orig_argv()
+    if not orig_argv:
+        return None
+
+    if orig_argv[0].endswith("Thonny.app/Contents/MacOS/thonny"):
+        return orig_argv[0][: -len("/Contents/MacOS/thonny")]
+
+    return None
 
 
 def launch():

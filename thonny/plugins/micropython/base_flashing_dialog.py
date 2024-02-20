@@ -31,6 +31,8 @@ FAMILY_CODES_TO_NAMES = {
     "esp32s2": "ESP32-S2",
     "esp32s3": "ESP32-S3",
     "esp32c3": "ESP32-C3",
+    "esp32c6": "ESP32-C6",
+    "esp32h2": "ESP32-H2",
     "nrf51": "nRF51",
     "nrf52": "nRF52",
 }
@@ -55,6 +57,7 @@ class BaseFlashingDialog(WorkDialog, ABC):
         self._last_handled_family_target = None
         self._last_handled_variant = None
         self.firmware_name = firmware_name
+        self.new_port = None  # Contains the port that appeared after installation
 
         threading.Thread(target=self._download_variants, daemon=True).start()
 
@@ -417,6 +420,10 @@ class BaseFlashingDialog(WorkDialog, ABC):
             daemon=True,
         ).start()
         return True
+
+    def cancel_work(self):
+        super().cancel_work()
+        self.new_port = None
 
     def prepare_work_get_options(self) -> Dict[str, Any]:
         return {}

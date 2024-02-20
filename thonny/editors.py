@@ -57,32 +57,82 @@ class EditorCodeViewText(CodeViewText):
         self.bindtags(self.bindtags() + ("EditorCodeViewText",))
 
 
-class Editor(ttk.Frame):
-    def __init__(self, master):
+class BaseEditor(ttk.Frame):
+    def __init__(self, master, propose_remove_line_numbers):
         ttk.Frame.__init__(self, master)
-        assert isinstance(master, EditorNotebook)
-        self.notebook = master  # type: EditorNotebook
 
-        # parent of codeview will be workbench so that it can be maximized
         self._code_view = CodeView(
-            get_workbench(),
-            propose_remove_line_numbers=True,
+            self,
+            propose_remove_line_numbers=propose_remove_line_numbers,
             font="EditorFont",
             text_class=EditorCodeViewText,
             cursor=get_beam_cursor(),
         )
-        get_workbench().event_generate(
-            "EditorTextCreated", editor=self, text_widget=self.get_text_widget()
-        )
-
         self._code_view.grid(row=0, column=0, sticky=tk.NSEW, in_=self)
-        self._code_view.home_widget = self  # don't forget home
-        self.maximizable_widget = self._code_view
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
 
         self._filename = None
+
+    def update_appearance(self):
+        self._code_view.set_gutter_visibility(
+            get_workbench().get_option("view.show_line_numbers") or get_workbench().in_simple_mode()
+        )
+        self._code_view.set_line_length_margin(
+            get_workbench().get_option("view.recommended_line_length")
+        )
+        self._code_view.text.update_tabs()
+        self._code_view.text.event_generate("<<UpdateAppearance>>")
+        self._code_view.grid_main_widgets()
+
+    def update_file_type(self):
+        if self._filename is None:
+            self._code_view.set_file_type(None)
+        else:
+            ext = self._filename.split(".")[-1].lower()
+            if ext in PYTHON_EXTENSIONS:
+                file_type = "python"
+            elif ext in PYTHONLIKE_EXTENSIONS:
+                file_type = "pythonlike"
+            else:
+                file_type = None
+
+            self._code_view.set_file_type(file_type)
+
+        self.update_appearance()
+
+    def is_modified(self):
+        return bool(self._code_view.text.edit_modified())
+
+    def get_title(self):
+        if self._filename is None:
+            result = tr("<untitled>")
+        elif is_remote_path(self._filename):
+            path = extract_target_path(self._filename)
+            name = path.split("/")[-1]
+            result = "[ " + name + " ]"
+        else:
+            result = self.shorten_filename_for_title(self._filename)
+
+        if self.is_modified():
+            result += " *"
+
+        return result
+
+    def shorten_filename_for_title(self, path: str) -> str:
+        return os.path.basename(path)
+
+
+class Editor(BaseEditor):
+    def __init__(self, master):
+        assert isinstance(master, EditorNotebook)
+        self.containing_notebook = master  # type: EditorNotebook
+        super().__init__(master, propose_remove_line_numbers=True)
+        get_workbench().event_generate(
+            "EditorTextCreated", editor=self, text_widget=self.get_text_widget()
+        )
+
         self._last_known_mtime = None
 
         self._code_view.text.bind("<<Modified>>", self._on_text_modified, True)
@@ -94,7 +144,7 @@ class Editor(ttk.Frame):
 
         self.update_appearance()
 
-    def get_text_widget(self):
+    def get_text_widget(self) -> tk.Text:
         return self._code_view.text
 
     def get_code_view(self):
@@ -118,21 +168,6 @@ class Editor(ttk.Frame):
             return self._filename
         else:
             return str(self.winfo_id())
-
-    def get_title(self):
-        if self.get_filename() is None:
-            result = tr("<untitled>")
-        elif is_remote_path(self.get_filename()):
-            path = extract_target_path(self.get_filename())
-            name = path.split("/")[-1]
-            result = "[ " + name + " ]"
-        else:
-            result = os.path.basename(self.get_filename())
-
-        if self.is_modified():
-            result += " *"
-
-        return result
 
     def check_for_external_changes(self):
         if self._filename is None:
@@ -245,6 +280,7 @@ class Editor(ttk.Frame):
         self.get_text_widget().edit_modified(False)
         self._code_view.focus_set()
         self.master.remember_recent_file(filename)
+        get_workbench().event_generate("Opened", editor=self, filename=self._filename)
         return True
 
     def _load_remote_file(self, filename):
@@ -275,9 +311,6 @@ class Editor(ttk.Frame):
         self.update_title()
         return True
 
-    def is_modified(self):
-        return bool(self._code_view.text.edit_modified())
-
     def save_file_enabled(self):
         return self.is_modified() or not self.get_filename()
 
@@ -291,7 +324,7 @@ class Editor(ttk.Frame):
             if not save_filename:
                 return None
 
-            if self.notebook.get_editor(save_filename) is not None:
+            if self.containing_notebook.get_editor(save_filename) is not None:
                 messagebox.showerror(
                     tr("File is open"),
                     tr(
@@ -321,7 +354,10 @@ class Editor(ttk.Frame):
             self._filename = save_filename
             self.update_file_type()
 
-        self.update_title()
+        if not save_copy or self._filename == save_filename:
+            self.update_title()
+            get_workbench().event_generate("Saved", editor=self, filename=self._filename)
+
         return save_filename
 
     def write_local_file(self, save_filename, content_bytes, save_copy):
@@ -360,22 +396,6 @@ class Editor(ttk.Frame):
             self._code_view.text.edit_modified(False)
 
         return True
-
-    def update_file_type(self):
-        if self._filename is None:
-            self._code_view.set_file_type(None)
-        else:
-            ext = self._filename.split(".")[-1].lower()
-            if ext in PYTHON_EXTENSIONS:
-                file_type = "python"
-            elif ext in PYTHONLIKE_EXTENSIONS:
-                file_type = "pythonlike"
-            else:
-                file_type = None
-
-            self._code_view.set_file_type(file_type)
-
-        self.update_appearance()
 
     def write_remote_file(self, save_filename, content_bytes, save_copy):
         if get_runner().ready_for_remote_file_operations(show_message=True):
@@ -505,17 +525,6 @@ class Editor(ttk.Frame):
     def show(self):
         self.master.select(self)
 
-    def update_appearance(self):
-        self._code_view.set_gutter_visibility(
-            get_workbench().get_option("view.show_line_numbers") or get_workbench().in_simple_mode()
-        )
-        self._code_view.set_line_length_margin(
-            get_workbench().get_option("view.recommended_line_length")
-        )
-        self._code_view.text.update_tabs()
-        self._code_view.text.event_generate("<<UpdateAppearance>>")
-        self._code_view.grid_main_widgets()
-
     def _listen_debugger_progress(self, event):
         # Go read-only
         # TODO: check whether this module is active?
@@ -565,11 +574,13 @@ class Editor(ttk.Frame):
     def update_title(self):
         try:
             self.master.update_editor_title(self)
-        except Exception as e:
-            logger.exception("Could not update editor title", exc_info=e)
+        except Exception:
+            logger.exception("Could not update editor title")
 
     def _on_text_change(self, event):
-        self.update_title()
+        # may not be added to the Notebook yet
+        if self.containing_notebook.has_content(self):
+            self.update_title()
 
     def destroy(self):
         get_workbench().unbind("DebuggerResponse", self._listen_debugger_progress)
@@ -905,9 +916,7 @@ class EditorNotebook(CustomNotebook):
                 continue
             else:
                 editor = self.get_child_by_index(tab_index)
-                if self.check_allow_closing(editor):
-                    self.forget(editor)
-                    editor.destroy()
+                self.close_editor(editor, force=False)
 
     def _cmd_close_file(self):
         self.close_tab(self.index(self.select()))
@@ -924,7 +933,7 @@ class EditorNotebook(CustomNotebook):
     def close_editor(self, editor, force=False):
         if not force and not self.check_allow_closing(editor):
             return
-        self.forget(editor)
+        self._forget(editor)
         editor.destroy()
 
     def _cmd_save_file(self):

@@ -30,6 +30,7 @@ from thonny.common import (  # TODO: try to get rid of this
     ToplevelCommand,
     ToplevelResponse,
     UserError,
+    execute_with_frontend_sys_path,
     is_local_path,
     parse_message,
     read_one_incoming_message_str,
@@ -637,6 +638,7 @@ class UploadDownloadMixin(ABC):
                     transfer_file_fun(item["source_path"], item["target_path"], copy_bytes_notifier)
                     completed_cost += self._get_file_fixed_cost() + item["size"]
             except OSError as e:
+                logger.exception("OSError during upload")
                 errors.append(
                     "Could not copy %s to %s: %s"
                     % (item["source_path"], item["target_path"], str(e))
@@ -745,16 +747,9 @@ class RemoteProcess:
 class SshMixin(UploadDownloadMixin):
     def __init__(self, host, user, password, interpreter, cwd):
         # UploadDownloadMixin.__init__(self)
-        try:
-            import paramiko
-            from paramiko.client import AutoAddPolicy, SSHClient
-        except ImportError:
-            print(
-                "\nThis back-end requires an extra package named 'paramiko'."
-                " Install it from 'Tools => Manage plug-ins' or via your system package manager.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        execute_with_frontend_sys_path(self._try_load_paramiko)
+        import paramiko
+        from paramiko.client import AutoAddPolicy, SSHClient
 
         self._host = host
         self._user = user
@@ -768,6 +763,18 @@ class SshMixin(UploadDownloadMixin):
         self._client.set_missing_host_key_policy(paramiko.client.AutoAddPolicy())
         # TODO: does it get closed properly after process gets killed?
         self._connect()
+
+    def _try_load_paramiko(self):
+        try:
+            import paramiko.client
+        except ImportError:
+            logger.info("Could not import paramiko")
+            print(
+                "\nThis back-end requires an extra package named 'paramiko'."
+                " Install it from 'Tools => Manage plug-ins' or via your system package manager.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
 
     def _connect(self):
         from paramiko import SSHException

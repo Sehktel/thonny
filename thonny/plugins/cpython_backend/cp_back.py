@@ -48,6 +48,7 @@ from thonny.common import (
     get_python_version_string,
     get_single_dir_child_data,
     path_startswith,
+    running_in_virtual_environment,
     serialize_message,
     update_system_path,
 )
@@ -418,16 +419,12 @@ class MainCPythonBackend(MainBackend):
             main_dir=self._main_dir,
             sys_path=sys.path,
             usersitepackages=site.getusersitepackages() if site.ENABLE_USER_SITE else None,
+            externally_managed=self._is_externally_managed(),
             prefix=sys.prefix,
             welcome_text=f"Python {get_python_version_string()} ({sys.executable})",
             executable=sys.executable,
             exe_dirs=get_exe_dirs(),
-            in_venv=(
-                hasattr(sys, "base_prefix")
-                and sys.base_prefix != sys.prefix
-                or hasattr(sys, "real_prefix")
-                and getattr(sys, "real_prefix") != sys.prefix
-            ),
+            in_venv=running_in_virtual_environment(),
             python_version=get_python_version_string(),
             cwd=os.getcwd(),
         )
@@ -1087,6 +1084,22 @@ class MainCPythonBackend(MainBackend):
         if "tty_mode" in cmd:
             self._tty_mode = cmd["tty_mode"]
 
+    def _is_externally_managed(self):
+        if running_in_virtual_environment():
+            return False
+
+        import sysconfig
+
+        get_default_scheme = getattr(sysconfig, "get_default_scheme", None)
+        if get_default_scheme is None:
+            # before Python 3.10
+            get_default_scheme = getattr(sysconfig, "_get_default_scheme")
+
+        marker_path = os.path.join(
+            sysconfig.get_path("stdlib", get_default_scheme()), "EXTERNALLY-MANAGED"
+        )
+        return os.path.isfile(marker_path)
+
 
 class FakeStream:
     def __init__(self, backend: MainCPythonBackend, target_stream):
@@ -1138,6 +1151,7 @@ class FakeInputStream(FakeStream):
         self._eof = False
 
     def _generic_read(self, method, original_limit):
+        have_sent_input_request = False
         if original_limit is None:
             effective_limit = -1
         elif method == "readlines" and original_limit > -1:
@@ -1179,9 +1193,12 @@ class FakeInputStream(FakeStream):
                     break
 
                 else:
-                    self._backend.send_message(
-                        BackendEvent("InputRequest", method=method, limit=original_limit)
-                    )
+                    if not have_sent_input_request:
+                        self._backend.send_message(
+                            BackendEvent("InputRequest", method=method, limit=original_limit)
+                        )
+                        have_sent_input_request = True
+
                     msg = self._backend._fetch_next_incoming_message()
                     if isinstance(msg, InputSubmission):
                         self._buffer += msg.data
@@ -1306,13 +1323,13 @@ class Executor:
     def _instrument_repl_code(self, root):
         # modify all expression statements to print and register their non-None values
         for node in ast.walk(root):
-            if (
-                isinstance(node, ast.FunctionDef)
-                or hasattr(ast, "AsyncFunctionDef")
-                and isinstance(node, ast.AsyncFunctionDef)
-            ):
+            if isinstance(node, ast.FunctionDef) or isinstance(node, ast.AsyncFunctionDef):
                 first_stmt = node.body[0]
-                if isinstance(first_stmt, ast.Expr) and isinstance(first_stmt.value, ast.Str):
+                if (
+                    isinstance(first_stmt, ast.Expr)
+                    and isinstance(first_stmt.value, ast.Constant)
+                    and isinstance(first_stmt.value.value, str)
+                ):
                     first_stmt.contains_docstring = True
             if isinstance(node, ast.Expr) and not getattr(node, "contains_docstring", False):
                 node.value = ast.Call(
@@ -1413,20 +1430,15 @@ def format_exception_with_frame_info(e_type, e_value, e_traceback, shorten_filen
                         or not isinstance(e_value, SyntaxError)
                     )
                 ):
-                    fmt = '  File "{}", line {}, in {}\n'.format(
-                        entry.filename, entry.lineno, entry.name
-                    )
-
-                    if entry.line:
-                        fmt += "    {}\n".format(entry.line.strip())
-
+                    fmt = "".join(traceback.format_list([entry]))
                     yield (fmt, id(tb_temp.tb_frame), entry.filename, entry.lineno)
 
                 tb_temp = tb_temp.tb_next
 
             assert tb_temp is None  # tb was exhausted
 
-        for line in traceback.format_exception_only(etype, value):
+        # using format_exception with limit instead of format_exception_only because latter doesn't give extended info
+        for line in traceback.format_exception(etype, value, tb, limit=0):
             if etype is SyntaxError and line.endswith("^\n"):
                 # for some reason it may add several empty lines before ^-line
                 partlines = line.splitlines()

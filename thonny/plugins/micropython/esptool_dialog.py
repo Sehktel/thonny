@@ -49,6 +49,9 @@ class ESPFlashingDialog(BaseFlashingDialog):
         codes = ["esp32", "esp32s2", "esp32s3", "esp32c3"]
         if self.firmware_name == "MicroPython":
             codes.insert(0, "esp8266")
+        if self.firmware_name == "CircuitPython":
+            codes.append("esp32c6")
+            codes.append("esp32h2")
 
         return {family_code_to_name(code): code for code in codes}
 
@@ -368,7 +371,7 @@ class ESPFlashingDialog(BaseFlashingDialog):
         return returncode == 0
 
     def _compute_start_address(self, family: str) -> str:
-        if self.firmware_name == "MicroPython" and family in ["esp32", "esp32-s2"]:
+        if self.firmware_name == "MicroPython" and family in ["esp32", "esp32s2"]:
             return "0x1000"
         else:
             return "0x0"

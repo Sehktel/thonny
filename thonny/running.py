@@ -417,6 +417,7 @@ class Runner:
         )
 
         if not self.is_waiting_toplevel_command():
+            logger.info("Trying to execute current but runner is %r", self.get_state())
             self._proxy.interrupt()
 
             try:
@@ -450,10 +451,15 @@ class Runner:
         if editor.get_filename() or not get_workbench().get_option(
             "run.allow_running_unnamed_programs"
         ):
-            filename = editor.save_file()
-            if not filename:
-                # user has cancelled file saving
-                return
+            if editor.get_filename() and not editor.is_modified():
+                # Don't attempt to save as the file may be read-only
+                logger.debug("Not saving read only file %s", editor.get_filename())
+                filename = editor.get_filename()
+            else:
+                filename = editor.save_file()
+                if not filename:
+                    # user has cancelled file saving
+                    return
         else:
             filename = UNTITLED
 
@@ -819,8 +825,11 @@ class Runner:
 
     def using_venv(self) -> bool:
         from thonny.plugins.cpython_frontend import LocalCPythonProxy
+        from thonny.plugins.cpython_ssh.cps_front import SshCPythonProxy
 
-        return isinstance(self._proxy, LocalCPythonProxy) and self._proxy._in_venv
+        return (
+            isinstance(self._proxy, (LocalCPythonProxy, SshCPythonProxy)) and self._proxy._in_venv
+        )
 
 
 class BackendProxy(ABC):
@@ -982,6 +991,7 @@ class SubprocessProxy(BackendProxy, ABC):
         self._response_queue = None
         self._sys_path = []
         self._usersitepackages = None
+        self._externally_managed = None
         self._reported_executable = None
         self._gui_update_loop_id = None
         self._in_venv = None
@@ -1037,6 +1047,8 @@ class SubprocessProxy(BackendProxy, ABC):
         # see https://github.com/thonny/thonny/issues/808
         env["PYTHONUNBUFFERED"] = "1"
 
+        env["PYTHONSAFEPATH"] = "1"
+
         # Let back-end know about plug-ins
         env["THONNY_USER_DIR"] = THONNY_USER_DIR
         env["THONNY_FRONTEND_SYS_PATH"] = repr(sys.path)
@@ -1072,7 +1084,7 @@ class SubprocessProxy(BackendProxy, ABC):
         )
 
         if self.can_be_isolated():
-            cmd_line.insert(1, "-I")
+            cmd_line.insert(1, "-s")
 
         creationflags = 0
         if running_on_windows():
@@ -1261,6 +1273,9 @@ class SubprocessProxy(BackendProxy, ABC):
         if "usersitepackages" in msg:
             self._usersitepackages = msg["usersitepackages"]
 
+        if "externally_managed" in msg:
+            self._externally_managed = msg["externally_managed"]
+
         if "prefix" in msg:
             self._sys_prefix = msg["prefix"]
 
@@ -1277,15 +1292,16 @@ class SubprocessProxy(BackendProxy, ABC):
     def get_site_packages(self):
         # NB! site.sitepackages may not be present in virtualenv
         for d in self._sys_path:
-            if ("site-packages" in d or "dist-packages" in d) and path_startswith(
-                d, self._sys_prefix
-            ):
+            if d.endswith("site-packages") and path_startswith(d, self._sys_prefix):
                 return d
 
         return None
 
     def get_user_site_packages(self):
         return self._usersitepackages
+
+    def is_externally_managed(self):
+        return self._externally_managed or False
 
     def get_cwd(self):
         return self._cwd
@@ -1294,7 +1310,7 @@ class SubprocessProxy(BackendProxy, ABC):
         return self._exe_dirs
 
     def can_be_isolated(self) -> bool:
-        """Says whether the backend may be launched with -I switch"""
+        """Says whether the backend may be launched with -s switch"""
         return True
 
     def fetch_next_message(self):

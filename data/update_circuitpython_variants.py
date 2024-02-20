@@ -1,3 +1,7 @@
+"""
+Downloads: https://adafruit-circuit-python.s3.amazonaws.com/index.html?prefix=bin/
+"""
+
 from html.parser import HTMLParser
 from typing import Dict
 
@@ -18,6 +22,8 @@ RELEVANT_FAMILIES = {
     "esp32s2",
     "esp32s3",
     "esp32c3",
+    "esp32c6",
+    "esp32h2",
     "nrf52840",
     "raspberrypi",
 }
@@ -123,7 +129,7 @@ save_variants(
 save_variants(
     all_variants,
     ["bin"],
-    {"esp32", "esp32s2", "esp32s3", "esp32c3"},
+    {"esp32", "esp32s2", "esp32s3", "esp32c3", "esp32c6", "esp32h2"},
     "circuitpython-variants-esptool.json",
 )
 

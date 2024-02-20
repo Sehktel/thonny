@@ -16,7 +16,13 @@ from typing import Dict, List, Optional, Tuple, Union, cast
 
 import thonny
 from thonny import get_runner, get_workbench, running, tktextext, ui_utils
-from thonny.common import DistInfo, InlineCommand, normpath_with_actual_case, path_startswith
+from thonny.common import (
+    DistInfo,
+    InlineCommand,
+    normpath_with_actual_case,
+    path_startswith,
+    running_in_virtual_environment,
+)
 from thonny.languages import tr
 from thonny.misc_utils import construct_cmd_line, levenshtein_distance
 from thonny.running import InlineCommandDialog, get_front_interpreter_for_subprocess
@@ -29,7 +35,6 @@ from thonny.ui_utils import (
     get_hyperlink_cursor,
     lookup_style_option,
     open_path_in_system_file_manager,
-    scrollbar_style,
 )
 from thonny.workdlg import SubprocessDialog
 
@@ -145,9 +150,7 @@ class PipDialog(CommonDialog, ABC):
         self.listbox.insert("end", " <" + tr("INSTALL") + ">")
         self.listbox.bind("<<ListboxSelect>>", self._on_listbox_select, True)
         self.listbox.grid(row=0, column=0, sticky="nsew")
-        list_scrollbar = AutoScrollbar(
-            listframe, orient=tk.VERTICAL, style=scrollbar_style("Vertical")
-        )
+        list_scrollbar = AutoScrollbar(listframe, orient=tk.VERTICAL)
         list_scrollbar.grid(row=0, column=1, sticky="ns")
         list_scrollbar["command"] = self.listbox.yview
         self.listbox["yscrollcommand"] = list_scrollbar.set
@@ -170,8 +173,6 @@ class PipDialog(CommonDialog, ABC):
             horizontal_scrollbar=False,
             background=lookup_style_option("TFrame", "background"),
             vertical_scrollbar_class=AutoScrollbar,
-            vertical_scrollbar_style=scrollbar_style("Vertical"),
-            horizontal_scrollbar_style=scrollbar_style("Horizontal"),
             padx=ems_to_pixels(0.1),
             pady=0,
             width=70,
@@ -781,7 +782,7 @@ class PipDialog(CommonDialog, ABC):
         data = self.current_package_data
         name = self.current_package_data["info"]["name"]
 
-        install_args = []
+        install_args = ["--progress-bar", "off"]
         if self._use_user_install():
             install_args.append("--user")
 
@@ -848,7 +849,7 @@ class PipDialog(CommonDialog, ABC):
 
         filename = askopenfilename(
             master=self,
-            filetypes=[(tr("Package"), ".whl .zip .tar.gz"), (tr("all files"), ".*")],
+            filetypes=[(tr("Package"), ".whl .zip .gz"), (tr("all files"), ".*")],
             initialdir=get_workbench().get_local_cwd(),
             parent=self.winfo_toplevel(),
         )
@@ -873,7 +874,7 @@ class PipDialog(CommonDialog, ABC):
             open_path_in_system_file_manager(self._get_target_directory())
 
     def _install_file(self, filename, is_requirements_file):
-        args = self._get_install_file_command(filename, is_requirements_file)
+        args = self._get_install_file_args(filename, is_requirements_file)
 
         returncode, out, err = self._run_pip_with_dialog(
             command="install", args=args, title=tr("Installing '%s'") % os.path.basename(filename)
@@ -894,8 +895,8 @@ class PipDialog(CommonDialog, ABC):
 
         self._start_update_list(name)
 
-    def _get_install_file_command(self, filename, is_requirements_file):
-        args = ["install"]
+    def _get_install_file_args(self, filename, is_requirements_file):
+        args = []
         if self._use_user_install():
             args.append("--user")
         if is_requirements_file:
@@ -1129,13 +1130,7 @@ class PluginsPipDialog(PipDialog):
         return not self._targets_virtual_environment()
 
     def _targets_virtual_environment(self):
-        # https://stackoverflow.com/a/42580137/261181
-        return (
-            hasattr(sys, "base_prefix")
-            and sys.base_prefix != sys.prefix
-            or hasattr(sys, "real_prefix")
-            and getattr(sys, "real_prefix") != sys.prefix
-        )
+        return running_in_virtual_environment()
 
     def _confirm_install(self, package_data):
         name = package_data["info"]["name"]

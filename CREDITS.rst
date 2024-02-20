@@ -67,12 +67,15 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Austin Bart
 * Avag. sayan
 * badukaire
+* @bmcage
 * Bui Huy Quang
 * borpol
 * CADTEC GmbH (cadtec.ch)
 * cefn
 * Celso Isayah Dias
 * Chad Purdy
+* @chechigp
+* @ChrisMayfield
 * codemee
 * Collision Detection
 * cspaier
@@ -89,9 +92,11 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Filip Schouwenaars
 * Fizban
 * Físicamaldonado
+* Florentina (@emryswaves)
 * freddii
 * fstengel
 * Gabriel Slørdahl
+* @Gadgetoid
 * Gagan Saksena
 * Georges Khaznadar
 * Helmut Ascheid
@@ -116,6 +121,7 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Kauri Raba
 * kr-g
 * Laszlo Kocsis
+* Louis Lenchant
 * Lrasinen
 * M Burak Kalkan
 * Marcelo de Gomensoro Malheiros
@@ -127,6 +133,7 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Miro Hrončok
 * NathanBnm
 * Nicolas Despres
+* @omani
 * Paul Egbert
 * Pavel Minaev
 * Peter Marshall
@@ -136,6 +143,8 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * phr0gger
 * Pop Vasile Alexandru
 * Radim
+* Ralf Michael Metzing
+* @rauferd
 * Rene Lehtma
 * Rune Langøy
 * Saishen, Inc.
@@ -157,6 +166,7 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * tabreturn
 * TANAKA Masayuki
 * Thomas Helmuth
+* @tinyboxvk
 * TooLazy0x00
 * Toomas Mölder
 * Tristan Bunn
