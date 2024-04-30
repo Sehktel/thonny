@@ -63,6 +63,7 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Ankith
 * Antonio Carlos
 * atesin
+* athompson673
 * Augene J. Pak
 * Austin Bart
 * Avag. sayan
@@ -84,6 +85,7 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Dominic Twyman
 * Dominik George
 * Donald Butt
+* @dsb3
 * Duncan Ogilvie (@mrexodia)
 * Eliot Blennerhassett
 * Emanuel Angelo
@@ -146,12 +148,14 @@ Source contributors, sponsors, advisors, translators and frequent bug-reporters
 * Ralf Michael Metzing
 * @rauferd
 * Rene Lehtma
+* Richard Kanehl
 * Rune Langøy
 * Saishen, Inc.
 * Sam Warmuth
 * Sami Almuhammady
 * sailslack
 * Scott Blackledge
+* @scottfp
 * segalion
 * Simon Gijsen
 * Simon Long

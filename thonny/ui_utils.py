@@ -10,12 +10,11 @@ import time
 import tkinter as tk
 import tkinter.font
 import traceback
+from _tkinter import TclError
 from abc import ABC, abstractmethod
 from logging import getLogger
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union  # @UnusedImport
-
-from _tkinter import TclError
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union  # @UnusedImport
 
 from thonny import get_workbench, misc_utils, tktextext
 from thonny.common import TextRange
@@ -47,6 +46,8 @@ class CustomToolbutton(tk.Frame):
         width=None,
         pad=None,
         font=None,
+        background=None,
+        borderwidth=0,
     ):
         if isinstance(image, (list, tuple)):
             self.normal_image = image[0]
@@ -60,7 +61,7 @@ class CustomToolbutton(tk.Frame):
         style_conf = get_style_configuration("CustomToolbutton")
         if self.style:
             style_conf |= get_style_configuration(self.style)
-        self.normal_background = style_conf["background"]
+        self.normal_background = background or style_conf["background"]
         self.hover_background = style_conf["activebackground"]
 
         if state == "disabled":
@@ -68,7 +69,9 @@ class CustomToolbutton(tk.Frame):
         else:
             self.current_image = self.normal_image
 
-        super().__init__(master, background=self.normal_background)
+        super().__init__(
+            master, background=self.normal_background, borderwidth=borderwidth, relief="solid"
+        )
         kw = {}
         if font is not None:
             kw["font"] = font
@@ -609,26 +612,30 @@ class AutomaticNotebook(CustomNotebook):
         # constructor hasn't completed yet
         self.preferred_size_in_pw = preferred_size_in_pw
 
-    def after_add_or_insert(self, page: CustomNotebookPage) -> None:
-        super().after_add_or_insert(page)
+    def after_insert(
+        self,
+        pos: Union[int, Literal["end"]],
+        page: CustomNotebookPage,
+        old_notebook: Optional[CustomNotebook],
+    ) -> None:
+        super().after_insert(pos, page, old_notebook)
         self._update_visibility()
-        get_workbench().event_generate("NotebookPageOpened", page=page)
+        if old_notebook is None:
+            get_workbench().event_generate("NotebookPageOpened", page=page)
+        else:
+            get_workbench().event_generate(
+                "NotebookPageMoved", page=page, new_notebook=self, old_notebook=old_notebook
+            )
 
-    def after_forget(self, page: CustomNotebookPage):
+    def after_forget(
+        self, pos: int, page: CustomNotebookPage, new_notebook: Optional[CustomNotebook]
+    ):
         # see the comment at after_add_or_insert
-        super().after_forget(page)
+        super().after_forget(pos, page, new_notebook)
         self._update_visibility()
-        get_workbench().event_generate("NotebookPageClosed", page=page)
-
-    def after_move(self, page: CustomNotebookPage, old_notebook: CustomNotebook):
-        # see the comment at after_add_or_insert
-        super().after_move(page, old_notebook)
-        self._update_visibility()
-        if old_notebook is not self and isinstance(old_notebook, AutomaticNotebook):
-            old_notebook._update_visibility()
-        get_workbench().event_generate(
-            "NotebookPageMoved", page=page, new_notebook=self, old_notebook=old_notebook
-        )
+        if new_notebook is None:
+            get_workbench().event_generate("NotebookPageClosed", page=page)
+        # if there is new_notebook, then Workbench gets its Moved event from it
 
     def _is_visible(self):
         if not isinstance(self.master, AutomaticPanedWindow):
@@ -799,9 +806,24 @@ def set_zoomed(toplevel, value):
 
 
 class EnhancedTextWithLogging(tktextext.EnhancedText):
-    def __init__(self, master=None, style="Text", tag_current_line=False, cnf={}, **kw):
+    def __init__(
+        self,
+        master,
+        indent_width: int,
+        tab_width: int,
+        style="Text",
+        tag_current_line=False,
+        cnf={},
+        **kw,
+    ):
         super().__init__(
-            master=master, style=style, tag_current_line=tag_current_line, cnf=cnf, **kw
+            master=master,
+            indent_width=indent_width,
+            tab_width=tab_width,
+            style=style,
+            tag_current_line=tag_current_line,
+            cnf=cnf,
+            **kw,
         )
 
         self._last_event_changed_line_count = False
@@ -821,15 +843,16 @@ class EnhancedTextWithLogging(tktextext.EnhancedText):
         trivial_for_coloring, trivial_for_parens = self._is_trivial_edit(
             chars, line_before, line_after
         )
-        get_workbench().event_generate(
-            "TextInsert",
-            index=concrete_index,
-            text=chars,
-            tags=tags,
-            text_widget=self,
-            trivial_for_coloring=trivial_for_coloring,
-            trivial_for_parens=trivial_for_parens,
-        )
+        if not self._suppress_events:
+            get_workbench().event_generate(
+                "TextInsert",
+                index=concrete_index,
+                text=chars,
+                tags=tags,
+                text_widget=self,
+                trivial_for_coloring=trivial_for_coloring,
+                trivial_for_parens=trivial_for_parens,
+            )
         return result
 
     def direct_delete(self, index1, index2=None, **kw):
@@ -856,14 +879,15 @@ class EnhancedTextWithLogging(tktextext.EnhancedText):
             trivial_for_coloring, trivial_for_parens = self._is_trivial_edit(
                 chars, line_before, line_after
             )
-            get_workbench().event_generate(
-                "TextDelete",
-                index1=concrete_index1,
-                index2=concrete_index2,
-                text_widget=self,
-                trivial_for_coloring=trivial_for_coloring,
-                trivial_for_parens=trivial_for_parens,
-            )
+            if not self._suppress_events:
+                get_workbench().event_generate(
+                    "TextDelete",
+                    index1=concrete_index1,
+                    index2=concrete_index2,
+                    text_widget=self,
+                    trivial_for_coloring=trivial_for_coloring,
+                    trivial_for_parens=trivial_for_parens,
+                )
 
     def _is_trivial_edit(self, chars, line_before, line_after):
         # line is taken after edit for insertion and before edit for deletion
@@ -1353,10 +1377,7 @@ class EnhancedVar(tk.Variable):
         super().__init__(master=master, value=value, name=name)
         self.modified = False
         self.modification_listener = modification_listener
-        if sys.version_info < (3, 6):
-            self.trace("w", self._on_write)
-        else:
-            self.trace_add("write", self._on_write)
+        self.trace_add("write", self._on_write)
 
     def _on_write(self, *args):
         self.modified = True
@@ -2430,21 +2451,26 @@ def windows_known_extensions_are_hidden() -> bool:
 
 
 class MappingCombobox(ttk.Combobox):
-    def __init__(self, master, mapping=None, **kw):
-        super().__init__(master, **kw)
-
-        if mapping is None:
-            mapping = {}
-
-        self.mapping: Dict[str, Any]
-        self.set_mapping(mapping)
+    def __init__(
+        self, master, mapping: Dict[str, Any], value_variable: Optional[tk.Variable] = None, **kw
+    ):
+        self.mapping = mapping
+        self.value_variable = value_variable
         self.mapping_desc_variable = tk.StringVar(value="")
+
+        super().__init__(master, **kw)
+        self.set_mapping(mapping)
         self.configure(textvariable=self.mapping_desc_variable)
 
         if kw.get("state", None) == "disabled":
             self.state(["readonly"])
         else:
             self.state(["!disabled", "readonly"])
+
+        self.bind("<<ComboboxSelected>>", self.on_select_value, True)
+
+        if self.value_variable is not None:
+            self.select_value(self.value_variable.get())
 
     def set_mapping(self, mapping: Dict[str, Any]):
         self.mapping = mapping
@@ -2453,6 +2479,10 @@ class MappingCombobox(ttk.Combobox):
     def add_pair(self, label, value):
         self.mapping[label] = value
         self["values"] = list(self.mapping)
+
+    def on_select_value(self, *event):
+        if self.value_variable is not None:
+            self.value_variable.set(self.get_selected_value())
 
     def get_selected_value(self) -> Any:
         desc = self.mapping_desc_variable.get()
@@ -2545,6 +2575,31 @@ def open_with_default_app(path):
         subprocess.run(["open", path])
     else:
         subprocess.run(["xdg-open", path])
+
+
+def compute_tab_stops(tab_width_in_chars: int, font: tk.font.Font, offset_px=0) -> List[int]:
+    tab_pixels = font.measure("n" * tab_width_in_chars)
+
+    tabs = []
+    if offset_px > 0:
+        tabs.append(offset_px)
+
+    for _ in range(20):
+        offset_px += tab_pixels
+        tabs.append(offset_px)
+
+    return tabs
+
+
+def get_last_grid_row(container: tk.Widget) -> int:
+    return container.grid_size()[1] - 1
+
+
+def create_custom_toolbutton_in_frame(master, borderwidth, bordercolor, **kwargs):
+    frame = tk.Frame(master, background=bordercolor)
+    frame.button = CustomToolbutton(frame, **kwargs)
+    frame.button.grid(pady=borderwidth, padx=borderwidth)
+    return frame
 
 
 if __name__ == "__main__":

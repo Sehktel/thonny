@@ -5,7 +5,7 @@ from datetime import datetime
 from logging import getLogger
 from typing import Dict, List, Optional, Tuple
 
-from thonny import THONNY_USER_DIR, get_shell, get_workbench
+from thonny import get_shell, get_thonny_user_dir, get_workbench
 from thonny.languages import tr
 from thonny.shell import ShellView
 from thonny.ui_utils import asksaveasfilename
@@ -55,8 +55,10 @@ class EventLogger:
             "Saved",
             "NewFile",
             "EditorTextCreated",
-            "EditorTextDestroyed",
+            # "EditorTextDestroyed", # Can't determine toplevel of a destroyed Text
             # "ShellTextCreated", # Too bad, this event happens before event_logging is loaded
+            "InsertEditorToNotebook",
+            "RemoveEditorFromNotebook",
             "ShellCommand",
             "ShellInput",
             "ShowView",
@@ -150,6 +152,8 @@ class EventLogger:
             logger.info("Won't log %r because we are closing", sequence)
             return
 
+        widget: Optional[tk.Widget]
+
         event_time = datetime.now()
         import json
 
@@ -167,6 +171,13 @@ class EventLogger:
             widget = getattr(event, "text_widget", None)
 
         if widget is not None:
+            if not widget.winfo_exists():
+                # Probably the widget was deleted by an earlier event handler
+                logger.warning(
+                    "Got event %r from widget %r, but the widget does not exist'", sequence, widget
+                )
+                return
+
             try:
                 if widget.winfo_toplevel() is not get_workbench():
                     # logger.debug("Skipping non-workspace event %r", event)
@@ -248,7 +259,7 @@ class EventLogger:
 
 
 def get_log_dir():
-    return os.path.join(THONNY_USER_DIR, "user_logs")
+    return os.path.join(get_thonny_user_dir(), "user_logs")
 
 
 def export():

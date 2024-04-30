@@ -689,6 +689,9 @@ def enhanced_aqua() -> CompoundUiThemeSettings:
                 }
             },
             "Inactive.ViewTab.TLabel": {"map": {"relief": [("hover", "raised")]}},
+            "TNotebook": {
+                "configure": {"tabmargins": [10, 0], "tabposition": "n", "padding": [0, 0, 0, 0]}
+            },
             "CustomToolbutton": {
                 "configure": {
                     "background": "systemWindowBackgroundColor",
@@ -705,6 +708,11 @@ def enhanced_aqua() -> CompoundUiThemeSettings:
                     "background": "systemWindowBackgroundColor2",
                     "activebackground": "systemWindowBackgroundColor",
                     "indicatorbackground": "systemWindowBackgroundColor",
+                }
+            },
+            "Listbox": {
+                "configure": {
+                    "background": "white",
                 }
             },
         },
