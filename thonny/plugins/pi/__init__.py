@@ -301,7 +301,6 @@ def load_plugin():
         "resume": "resume.png",
         "zoom": "zoom.png",
         "quit": "quit.png",
-        "Ukraine": "Ukraine.png",
     }
 
     res_dir = os.path.join(os.path.dirname(__file__), "res")
